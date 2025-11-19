@@ -1,24 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, RefreshCw, Save, Search, Box, AlertCircle, CheckCircle, Plus, Minus, X, Server, WifiOff, HelpCircle, ShieldAlert, FileJson, Database, Terminal, Palette, Activity } from 'lucide-react';
+import { RefreshCw, Save, Search, Box, AlertCircle, CheckCircle, Plus, Minus, X, Server, WifiOff, HelpCircle, ShieldAlert, FileJson, Database, Terminal, Palette, Activity } from 'lucide-react';
 
-// --- URLS DEFINITIVAS ---
-// Estas URLs ya no se guardan ni se pueden modificar en la interfaz.
-const ALTA_URL_DEFINITIVA = 'https://new.automatizar.work/webhook/alta';
-const GET_URL_DEFINITIVA = 'https://new.automatizar.work/webhook/leer-inventario';
-const UPDATE_URL_DEFINITIVA = 'https://new.automatizar.work/webhook/actualizar-inventario';
-// --- URLS DEFINITIVAS ---
+// --- CONFIGURACIÓN DE CONEXIÓN (SEGURA Y COMPATIBLE) ---
 
-// Objeto de configuración fija (no es estado, solo referencia)
+// Helper para leer variables de entorno de forma segura (evita crash en entornos sin import.meta.env)
+const getEnv = (key) => {
+    // Verificamos si import.meta y import.meta.env existen antes de acceder
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+        return import.meta.env[key] || '';
+    }
+    return '';
+};
+
+// Ahora usamos la función segura. Si estás en Vite local, leerá tu .env.
+// Si estás aquí en el navegador, usará '' y mostrará el aviso de configuración.
+const ALTA_URL_DEFINITIVA = getEnv('VITE_WEBHOOK_ALTA');
+const GET_URL_DEFINITIVA = getEnv('VITE_WEBHOOK_GET');
+const UPDATE_URL_DEFINITIVA = getEnv('VITE_WEBHOOK_POST');
+const SECURITY_TOKEN = getEnv('VITE_AUTH_TOKEN'); 
+
 const CONFIG_FIJA = { 
     getUrl: GET_URL_DEFINITIVA, 
     postUrl: UPDATE_URL_DEFINITIVA, 
     postNewUrl: ALTA_URL_DEFINITIVA, 
 };
 
-
 // --- Componentes Modales (Funciones Auxiliares) ---
 
-// Modal de Diagnóstico y Ayuda (Mantenido solo para fines de depuración interna si se necesita)
+// Modal de Diagnóstico y Ayuda
 const DiagnosticsModal = ({ show, onClose, showDebug, setShowDebug, showHelp, setShowHelp, helpTopic, setHelpTopic, lastRawData, fetchData }) => {
     if (!show) return null;
 
@@ -28,12 +37,15 @@ const DiagnosticsModal = ({ show, onClose, showDebug, setShowDebug, showHelp, se
         onClose();
     };
 
+    // Validamos si las variables de entorno se cargaron
+    const isEnvLoaded = CONFIG_FIJA.getUrl && CONFIG_FIJA.postUrl && SECURITY_TOKEN;
+
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4 sm:p-0">
           <div className="bg-white w-full sm:w-96 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-6 border-b flex justify-between items-center bg-blue-50 rounded-t-2xl">
               <h2 className="text-xl font-bold flex items-center gap-2 text-blue-800">
-                <Server size={20} /> Diagnóstico y URLs
+                <Server size={20} /> Diagnóstico y Variables
               </h2>
               <button onClick={handleClose} className="text-slate-400 hover:text-slate-600">
                 <X size={24} />
@@ -43,16 +55,22 @@ const DiagnosticsModal = ({ show, onClose, showDebug, setShowDebug, showHelp, se
             <div className="p-6 overflow-y-auto space-y-4">
               {!showHelp && !showDebug ? (
                 <div className="space-y-4">
-                    <div className="p-3 bg-blue-100 rounded text-sm font-medium text-blue-800">
-                        <p className="font-bold mb-2">URLs de n8n (Fijas):</p>
-                        <div className="font-mono text-xs space-y-1">
-                            <p><strong>GET (Lectura):</strong> <span className="break-all">{CONFIG_FIJA.getUrl}</span></p>
-                            <p><strong>POST (Actualizar):</strong> <span className="break-all">{CONFIG_FIJA.postUrl}</span></p>
-                            <p><strong>POST (Alta):</strong> <span className="break-all">{CONFIG_FIJA.postNewUrl}</span></p>
+                    <div className={`p-3 rounded text-sm font-medium border ${isEnvLoaded ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
+                        <p className="font-bold mb-2">{isEnvLoaded ? '✅ Configuración Cargada (.env)' : '❌ Faltan Variables de Entorno'}</p>
+                        
+                        {!isEnvLoaded && (
+                            <p className="text-xs mb-2">Asegúrate de tener el archivo <code>.env</code> en la raíz de tu proyecto local con tus URLs y Token.</p>
+                        )}
+
+                        <div className="font-mono text-xs space-y-1 overflow-hidden">
+                            <p><strong>GET:</strong> {CONFIG_FIJA.getUrl ? 'Configurado' : 'Falta VITE_WEBHOOK_GET'}</p>
+                            <p><strong>POST (Upd):</strong> {CONFIG_FIJA.postUrl ? 'Configurado' : 'Falta VITE_WEBHOOK_POST'}</p>
+                            <p><strong>POST (Alta):</strong> {CONFIG_FIJA.postNewUrl ? 'Configurado' : 'Falta VITE_WEBHOOK_ALTA'}</p>
+                            <p><strong>Token:</strong> {SECURITY_TOKEN ? '********' : 'Falta VITE_AUTH_TOKEN'}</p>
                         </div>
                     </div>
 
-                    <p className="text-sm text-slate-600">Si hay problemas de conexión o datos, utiliza estas herramientas:</p>
+                    <p className="text-sm text-slate-600">Herramientas de soporte:</p>
                   
                   <div className="flex gap-2 mt-2">
                      <button onClick={() => {setHelpTopic('cors'); setShowHelp(true);}} className="flex-1 flex items-center justify-center gap-2 text-xs text-orange-600 bg-orange-50 p-3 rounded-xl font-bold hover:bg-orange-100 transition">
@@ -74,7 +92,7 @@ const DiagnosticsModal = ({ show, onClose, showDebug, setShowDebug, showHelp, se
                   </div>
                   <p className="text-xs text-slate-500 mb-2">Primer registro tal cual llega de n8n:</p>
                   <pre className="bg-slate-900 text-green-400 p-3 rounded text-xs overflow-x-auto max-h-60">
-                    {lastRawData ? JSON.stringify(lastRawData, null, 2) : '// No hay datos recibidos aún.\n// Vuelve a la pantalla principal y recarga.'}
+                    {lastRawData ? JSON.stringify(lastRawData, null, 2) : '// No hay datos recibidos aún.\n// Revisa tu archivo .env'}
                   </pre>
                   <div className="mt-4 p-3 bg-yellow-50 text-yellow-800 text-xs rounded border border-yellow-100">
                     <strong>Columnas buscadas:</strong>
@@ -98,18 +116,22 @@ const DiagnosticsModal = ({ show, onClose, showDebug, setShowDebug, showHelp, se
                   </div>
                   {helpTopic === 'cors' && (
                     <>
-                      <p className="text-slate-600">Este error de seguridad significa que el navegador está bloqueando la conexión. La solución es configurar n8n para que permita peticiones desde esta aplicación.</p>
+                      <p className="text-slate-600">Este error suele ser de seguridad (CORS) o autenticación fallida.</p>
                       <div className="bg-slate-100 p-3 rounded font-mono text-xs space-y-2 border border-slate-200">
                         <p className="font-bold text-slate-800">En tu flujo de n8n (Nodo "Respond to Webhook"):</p>
                         <ul className="list-disc pl-4 space-y-1">
                           <li><strong>Response Headers:</strong><br/>Key: <code>Access-Control-Allow-Origin</code><br/>Value: <code>*</code></li>
+                        </ul>
+                        <p className="font-bold text-slate-800 mt-2">Si activaste Autenticación:</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>Asegúrate de que el token en el archivo <code>.env</code> sea correcto.</li>
                         </ul>
                       </div>
                     </>
                   )}
                   {helpTopic === 'header500' && (
                     <div className="bg-red-50 p-3 rounded text-xs space-y-2 border border-red-200">
-                       <p><strong>¡Error!</strong> Hay una fila vacía o un nombre de encabezado inválido en los "Response Headers" del nodo "Respond to Webhook" de n8n. Elimina o corrige la fila.</p>
+                       <p><strong>¡Error!</strong> Hay una fila vacía o inválida en los headers de n8n. Revisa también si la autenticación está rechazando la conexión.</p>
                     </div>
                   )}
                   <button onClick={() => { setShowDebug(false); setShowHelp(false); }} className="w-full bg-slate-200 text-slate-700 py-2 rounded font-bold hover:bg-slate-300 mt-4">Volver</button>
@@ -211,16 +233,7 @@ export default function InventoryApp() {
     counted: 0
   });
 
-  // Datos de demostración (fallback)
-  const demoData = [
-    { row_number: 900, name: 'Engranaje Helicoidal (DEMO)', material: 'PETG', status: 'Nuevo', color: 'Naranja', stock: 15, counted: 15 },
-    { row_number: 901, name: 'Carcasa Inferior V2 (DEMO)', material: 'PLA', status: 'En uso', color: 'Negro Mate', stock: 4, counted: 4 },
-    { row_number: 902, name: 'Soporte de Bobina (DEMO)', material: 'ABS', status: 'Dañado', color: 'Blanco', stock: 2, counted: 2 },
-    { row_number: 903, name: 'Conducto de Ventilación (DEMO)', material: 'ASA', status: 'Nuevo', color: 'Gris', stock: 8, counted: 8 },
-    { row_number: 904, name: 'Clip de Cable (DEMO)', material: 'TPU', status: 'Nuevo', color: 'Azul', stock: 50, counted: 50 },
-  ];
-
-  // Helper para agregar IDs internos únicos (evita errores de Keys duplicadas en React)
+  // Helper para agregar IDs internos
   const addInternalIds = (data, prefix = 'item') => {
     return data.map((item, index) => ({
       ...item,
@@ -235,21 +248,16 @@ export default function InventoryApp() {
   // Función inteligente para normalizar claves (Keys) del JSON
   const normalizeItem = (rawItem) => {
     const keys = Object.keys(rawItem);
-    const newItem = { ...rawItem }; // Copia base
+    const newItem = { ...rawItem }; 
 
-    // Helper para encontrar el key, priorizando términos exactos (case-insensitive)
     const findKeyPrioritized = (exactTerms, regexFallback) => {
-        // 1. Check for exact terms first (e.g., 'name', 'stock', 'color')
         for (const term of exactTerms) {
-            // Buscamos el key que coincida exactamente (ignorando mayúsculas/minúsculas)
             const key = keys.find(k => k.toLowerCase() === term.toLowerCase());
             if (key) return key;
         }
-        // 2. Fallback a la búsqueda por regex
         return keys.find(k => regexFallback.test(k));
     };
 
-    // Normalización de campos
     if (!newItem.name) {
       const key = findKeyPrioritized(['name', 'nombre', 'pieza', 'producto', 'item'], /pieza|nombre|name|producto|item|title/i);
       if (key) newItem.name = rawItem[key];
@@ -262,19 +270,14 @@ export default function InventoryApp() {
       const key = findKeyPrioritized(['status', 'estado', 'condicion'], /estado|status|condicion|condition/i);
       if (key) newItem.status = rawItem[key];
     }
-    
-    // Lógica mejorada para COLOR: Prioriza 'color' o 'colour' exacto sobre descripciones largas
     if (!newItem.color) {
       const key = findKeyPrioritized(['color', 'colour', 'tono'], /color|colour|tono/i);
       if (key) newItem.color = rawItem[key];
     }
-
     if (newItem.stock === undefined) {
       const key = findKeyPrioritized(['stock', 'cantidad', 'qty', 'quantity', 'total'], /cantidad|stock|qty|quantity|total/i);
       if (key) newItem.stock = rawItem[key];
     }
-    
-    // 6. Buscar ID (Prioridad absoluta a row_number, luego a 'id')
     if (rawItem.row_number !== undefined) {
         newItem.id = rawItem.row_number;
     } else if (!newItem.id) {
@@ -289,10 +292,8 @@ export default function InventoryApp() {
   const fetchData = async () => {
     const urlToUse = CONFIG_FIJA.getUrl;
 
-    if (!urlToUse.startsWith('http')) {
-      setItems(addInternalIds(demoData, 'demo'));
-      return;
-    }
+    // Si no hay URL configurada (falta .env), no hacemos fetch
+    if (!urlToUse) return;
 
     if (window.location.protocol === 'https:' && urlToUse.startsWith('http:')) {
       showMsg('Error de Seguridad: No puedes conectar HTTP desde HTTPS.', 'error');
@@ -304,11 +305,17 @@ export default function InventoryApp() {
       console.log("Intentando conectar a:", urlToUse);
       const response = await fetch(urlToUse, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { 
+            'Accept': 'application/json',
+            'x-auth-token': SECURITY_TOKEN // <--- Token de Seguridad
+        }
       });
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
+        if (response.status === 403 || response.status === 401) {
+             throw new Error('Error de Autenticación: Token inválido o rechazado por n8n.');
+        }
         if (response.status === 500 && errorText.includes('Header name must be a valid')) {
           setHelpTopic('header500'); setShowHelp(true); setShowDiagnostics(true);
           throw new Error('Error de Configuración en n8n (Headers vacíos)');
@@ -339,9 +346,8 @@ export default function InventoryApp() {
         return {
           ...item,
           _raw: rawItem,
-          // Usar ID único de la fila de Sheets (o generar uno si no está)
           id: item.id ? String(item.id) : `gen-${index}`, 
-          _internalId: `fetched-${item.id || index}-${Math.random().toString(36).substr(2, 5)}`, // ID único para React
+          _internalId: `fetched-${item.id || index}-${Math.random().toString(36).substr(2, 5)}`, 
           stock: Number(item.stock) || 0,
           counted: Number(item.stock) || 0,
           name: item.name ? String(item.name) : 'Pieza sin nombre',
@@ -363,8 +369,6 @@ export default function InventoryApp() {
         setShowDiagnostics(true);
       }
       showMsg(errorMsg, 'error');
-      // Si falla la conexión, volvemos a la demo para que el usuario pueda seguir
-      if (items.length === 0) setItems(addInternalIds(demoData, 'demo')); 
     } finally {
       setLoading(false);
     }
@@ -373,15 +377,14 @@ export default function InventoryApp() {
   // Función para guardar cambios de stock (Update)
   const saveInventory = async () => {
     const urlToUse = CONFIG_FIJA.postUrl;
-    if (!urlToUse.startsWith('http')) {
-      showMsg('Error: URL POST (Actualización) inválida.', 'error');
+    if (!urlToUse) {
+      showMsg('Error: Falta URL POST en .env', 'error');
       return;
     }
     setSaving(true);
     
-    // Solo enviamos los ítems que tienen un cambio
     const changes = items.filter(item => item.stock !== item.counted).map(item => ({
-      id: item.id, // row_number para n8n
+      id: item.id, 
       name: item.name,
       oldStock: item.stock,
       newStock: item.counted
@@ -395,16 +398,18 @@ export default function InventoryApp() {
     try {
       const response = await fetch(urlToUse, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'x-auth-token': SECURITY_TOKEN // <--- Token de Seguridad
+        },
         body: JSON.stringify({ updates: changes }),
       });
       if (!response.ok) throw new Error(`Error ${response.status}`);
       
-      // Actualizamos el stock localmente tras guardar
       setItems(items.map(item => ({ ...item, stock: item.counted })));
       showMsg(`Éxito: ${changes.length} cambios guardados`, 'success');
     } catch (error) {
-      showMsg(`Error al guardar: ${error.message}. Verifica CORS en Webhook POST (Update).`, 'error');
+      showMsg(`Error al guardar: ${error.message}. Verifica CORS y Token.`, 'error');
     } finally {
       setSaving(false);
     }
@@ -413,15 +418,15 @@ export default function InventoryApp() {
   // Función para crear un nuevo ítem (Alta)
   const createNewItem = async () => {
     const urlToUse = CONFIG_FIJA.postNewUrl;
-    if (!urlToUse.startsWith('http')) {
-      showMsg('Error: URL POST (Alta) inválida.', 'error');
+    if (!urlToUse) {
+      showMsg('Error: Falta URL POST ALTA en .env', 'error');
       return;
     }
     const itemToCreate = {
       name: newItemData.name,
       material: newItemData.material,
       color: newItemData.color,
-      cantidad: Math.max(0, newItemData.counted) // Usamos 'cantidad' para que coincida con el nombre de tu columna
+      cantidad: Math.max(0, newItemData.counted)
     };
 
     if (!itemToCreate.name.trim() || itemToCreate.cantidad <= 0) {
@@ -433,17 +438,20 @@ export default function InventoryApp() {
     try {
       const response = await fetch(urlToUse, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'x-auth-token': SECURITY_TOKEN // <--- Token de Seguridad
+        },
         body: JSON.stringify({ newItem: itemToCreate }),
       });
       if (!response.ok) throw new Error(`Error ${response.status}`);
       
       showMsg(`Éxito: Pieza '${itemToCreate.name}' creada.`, 'success');
       setShowNewItemModal(false);
-      setNewItemData({ name: '', material: '', color: '', counted: 1 }); // Reset form
-      fetchData(); // Refresca la lista para incluir el nuevo ítem
+      setNewItemData({ name: '', material: '', color: '', counted: 0 }); 
+      fetchData(); 
     } catch (error) {
-      showMsg(`Error al crear: ${error.message}. Verifica CORS y URL POST (Alta).`, 'error');
+      showMsg(`Error al crear: ${error.message}. Verifica CORS y Token.`, 'error');
     } finally {
       setSaving(false);
     }
@@ -455,7 +463,6 @@ export default function InventoryApp() {
     setTimeout(() => setMsg(null), 6000);
   };
 
-  // Ahora usamos _internalId para identificar el ítem a actualizar
   const updateCount = (internalId, delta) => {
     setItems(items.map(item => 
       item._internalId === internalId 
@@ -473,32 +480,24 @@ export default function InventoryApp() {
     ));
   };
 
-  // Búsqueda multi-criterio: Divide el término por espacios y requiere que CADA palabra coincida con ALGÚN campo
   const filteredItems = items.filter(item => {
     if (!searchTerm) return true;
-    
     const searchKeywords = searchTerm.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    
-    // Verifica que CADA palabra clave esté presente en al menos uno de los campos del ítem
     return searchKeywords.every(keyword => {
       const inName = item.name && item.name.toLowerCase().includes(keyword);
       const inId = item.id && item.id.toString().includes(keyword);
       const inMaterial = item.material && item.material.toLowerCase().includes(keyword);
       const inColor = item.color && item.color.toLowerCase().includes(keyword);
       const inStatus = item.status && item.status.toLowerCase().includes(keyword);
-      
       return inName || inId || inMaterial || inColor || inStatus;
     });
   });
 
   const pendingChanges = items.filter(i => i.stock !== i.counted).length;
-  // La configuración ahora siempre es completa
-  const isSetupIncomplete = false; 
 
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-800 font-sans overflow-hidden">
-      
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-md z-10">
         <div className="flex justify-between items-center mb-3">
@@ -510,12 +509,10 @@ export default function InventoryApp() {
              <button onClick={() => fetchData()} className="p-2 bg-blue-500 rounded-full hover:bg-blue-400 transition active:scale-95" disabled={loading}>
               <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
             </button>
-            {/* Botón de Diagnóstico y URLs ELIMINADO */}
-            
-            {/* Se mantiene el modal, solo es inaccesible */}
-            {/* <button onClick={() => setShowDiagnostics(true)} className="p-2 bg-blue-500 rounded-full hover:bg-blue-400 transition active:scale-95">
-              <Settings size={20} />
-            </button> */}
+             {/* Botón oculto para invocar el diagnóstico si se toca 5 veces (secreto) */}
+            <button onClick={(e) => { if(e.detail === 5) setShowDiagnostics(true) }} className="p-2 rounded-full hover:bg-blue-500/50 transition active:scale-95 opacity-20">
+               <Server size={20} />
+            </button>
           </div>
         </div>
         <div className="relative">
@@ -532,7 +529,6 @@ export default function InventoryApp() {
 
       {/* Main List */}
       <main className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
-
         {loading && (
              <div className="bg-blue-50 text-blue-700 p-4 rounded-xl shadow-md flex items-center justify-center gap-3">
                 <RefreshCw size={20} className="shrink-0 animate-spin"/>
@@ -544,23 +540,19 @@ export default function InventoryApp() {
           <div className="text-center text-slate-400 mt-10 px-6">
             <Search size={48} className="mx-auto mb-2 opacity-50" />
             <p>No se encontraron piezas</p>
-            <p className="text-xs mt-2">Verifica los nombres de columnas en Sheets: <br/> <strong>Pieza, Material, Estado, Color, Cantidad</strong></p>
-            {CONFIG_FIJA.getUrl && (
-              <p className="mt-4 text-blue-600 text-sm">
-                (Si hay problemas, contacta al administrador para revisar el Diagnóstico de URLs)
-              </p>
+            {!CONFIG_FIJA.getUrl && (
+                <div className="mt-4 p-3 bg-red-50 text-red-800 text-xs rounded text-left">
+                    <strong>⚠️ Configuración Faltante:</strong><br/>
+                    La app no tiene las URLs de conexión. Debes crear el archivo <code>.env</code> en tu computadora para que funcione.
+                </div>
             )}
           </div>
         ) : (
-          // Usamos _internalId como key para evitar errores de React con duplicados
           filteredItems.map((item) => (
             <div key={item._internalId} className={`bg-white p-4 rounded-xl shadow-sm border-l-4 flex flex-col gap-3 transition-all ${item.counted !== item.stock ? 'border-orange-400 bg-orange-50' : 'border-blue-500'}`}>
               <div className="flex justify-between items-start">
                 <div className="overflow-hidden pr-2">
-                  {/* Nombre de la Pieza */}
                   <h3 className="font-bold text-lg leading-tight truncate mb-1">{item.name}</h3>
-                  
-                  {/* Chips de Metadatos */}
                   <div className="flex flex-wrap gap-2 text-xs text-slate-600">
                     {item.material !== 'N/A' && (
                       <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded">
@@ -580,29 +572,20 @@ export default function InventoryApp() {
                   </div>
                   <p className="text-[10px] text-slate-300 mt-1">Fila (ID): {item.id}</p>
                 </div>
-                
                 <div className="text-right shrink-0 min-w-[60px]">
                    <span className="text-xs text-slate-500 block mb-1">Actual</span>
                    <span className="font-mono font-bold text-xl bg-slate-50 px-2 py-1 rounded block">{item.stock}</span>
                 </div>
               </div>
-
-              {/* Controles de Conteo usando _internalId */}
               <div className="flex items-center justify-between bg-slate-100 rounded-lg p-1 mt-1">
                 <button onClick={() => updateCount(item._internalId, -1)} className="w-12 h-12 flex items-center justify-center bg-white rounded-md shadow-sm text-red-500 active:bg-red-50 transition-colors">
                   <Minus size={24} />
                 </button>
-                <input 
-                  type="number" 
-                  className="w-20 bg-transparent text-center font-bold text-2xl focus:outline-none text-slate-700" 
-                  value={item.counted} 
-                  onChange={(e) => handleInputChange(item._internalId, e.target.value)} 
-                />
+                <input type="number" className="w-20 bg-transparent text-center font-bold text-2xl focus:outline-none text-slate-700" value={item.counted} onChange={(e) => handleInputChange(item._internalId, e.target.value)} />
                 <button onClick={() => updateCount(item._internalId, 1)} className="w-12 h-12 flex items-center justify-center bg-white rounded-md shadow-sm text-green-600 active:bg-green-50 transition-colors">
                   <Plus size={24} />
                 </button>
               </div>
-              
               {item.counted !== item.stock && (
                 <div className="text-center text-xs font-bold text-orange-600 bg-orange-100 py-1 rounded flex justify-center gap-1">
                   <AlertCircle size={14}/> Modificado: {item.counted - item.stock > 0 ? '+' : ''}{item.counted - item.stock}
@@ -622,16 +605,11 @@ export default function InventoryApp() {
       
       {/* Floating Add New Item Button */}
       <div className="fixed bottom-6 right-6 z-40">
-        <button 
-            onClick={() => { setShowNewItemModal(true); setNewItemData({ name: '', material: '', color: '', counted: 1 }); }} 
-            className="p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 transition-transform transform active:scale-90"
-            aria-label="Dar de Alta Nuevo Ítem"
-        >
+        <button onClick={() => { setShowNewItemModal(true); setNewItemData({ name: '', material: '', color: '', counted: 1 }); }} className="p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 transition-transform transform active:scale-90" aria-label="Dar de Alta Nuevo Ítem">
             <Plus size={24} />
         </button>
       </div>
 
-      {/* Modals */}
       {showDiagnostics && (
         <DiagnosticsModal 
             show={showDiagnostics}
@@ -647,16 +625,8 @@ export default function InventoryApp() {
         />
       )}
       
-      <NewItemModal
-        show={showNewItemModal}
-        onClose={() => setShowNewItemModal(false)}
-        data={newItemData}
-        onChange={setNewItemData}
-        onCreate={createNewItem}
-        saving={saving}
-      />
+      <NewItemModal show={showNewItemModal} onClose={() => setShowNewItemModal(false)} data={newItemData} onChange={setNewItemData} onCreate={createNewItem} saving={saving} />
 
-      {/* Message System */}
       {msg && (
         <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 z-50 text-sm font-medium animate-fade-in max-w-[90vw] border ${msg.type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : msg.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-blue-50 text-blue-800 border-blue-200'}`}>
           {msg.type === 'success' ? <CheckCircle size={20} className="shrink-0" /> : msg.type === 'error' ? <WifiOff size={20} className="shrink-0" /> : <AlertCircle size={20} className="shrink-0" />}

@@ -5,24 +5,25 @@ import { RefreshCw, Save, Search, Box, AlertCircle, CheckCircle, Plus, Minus, X,
 
 // Helper para leer variables de entorno de forma segura (evita crash en entornos sin import.meta.env)
 const getEnv = (key) => {
-    // Verificamos si import.meta y import.meta.env existen antes de acceder
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-        return import.meta.env[key] || '';
-    }
-    return '';
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    return import.meta.env[key] || '';
+  }
+  return '';
 };
 
-// Ahora usamos la función segura. Si estás en Vite local, leerá tu .env.
-// Si estás aquí en el navegador, usará '' y mostrará el aviso de configuración.
+// Credenciales para login
+const LOGIN_USERNAME = getEnv('VITE_USERNAME');
+const LOGIN_PASSWORD = getEnv('VITE_PASSWORD');
+
 const ALTA_URL_DEFINITIVA = getEnv('VITE_WEBHOOK_ALTA');
 const GET_URL_DEFINITIVA = getEnv('VITE_WEBHOOK_GET');
 const UPDATE_URL_DEFINITIVA = getEnv('VITE_WEBHOOK_POST');
-const SECURITY_TOKEN = getEnv('VITE_AUTH_TOKEN'); 
+const SECURITY_TOKEN = getEnv('VITE_AUTH_TOKEN');
 
-const CONFIG_FIJA = { 
-    getUrl: GET_URL_DEFINITIVA, 
-    postUrl: UPDATE_URL_DEFINITIVA, 
-    postNewUrl: ALTA_URL_DEFINITIVA, 
+const CONFIG_FIJA = {
+  getUrl: GET_URL_DEFINITIVA,
+  postUrl: UPDATE_URL_DEFINITIVA,
+  postNewUrl: ALTA_URL_DEFINITIVA,
 };
 
 // --- Componentes Modales (Funciones Auxiliares) ---
@@ -212,26 +213,67 @@ const NewItemModal = ({ show, onClose, data, onChange, onCreate, saving }) => {
 
 // --- Componente principal ---
 
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (username === LOGIN_USERNAME && password === LOGIN_PASSWORD) {
+      localStorage.setItem('ovix_logged_in', 'true');
+      onLogin();
+    } else {
+      setError('Usuario o contraseña incorrectos');
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-blue-600">
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-xl p-8 w-full max-w-sm flex flex-col gap-4">
+        <h2 className="text-2xl font-bold text-center text-blue-700 mb-2">Login OVIX</h2>
+        <input
+          type="text"
+          placeholder="Usuario"
+          className="p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-lg"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          autoFocus
+        />
+        <input
+          type="password"
+          placeholder="Contraseña"
+          className="p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-lg"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+        />
+        {error && <div className="text-red-600 text-sm text-center">{error}</div>}
+        <button type="submit" className="w-full py-3 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-500 transition">Ingresar</button>
+      </form>
+    </div>
+  );
+}
+
 export default function InventoryApp() {
   // Estado de la aplicación
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showDiagnostics, setShowDiagnostics] = useState(false); 
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [helpTopic, setHelpTopic] = useState('cors'); 
-  const [showDebug, setShowDebug] = useState(false); 
-  const [showNewItemModal, setShowNewItemModal] = useState(false); 
-  const [lastRawData, setLastRawData] = useState(null); 
-  const [msg, setMsg] = useState(null); 
-  
-  const [newItemData, setNewItemData] = useState({ 
-    name: '', 
-    material: '', 
-    color: '', 
+  const [helpTopic, setHelpTopic] = useState('cors');
+  const [showDebug, setShowDebug] = useState(false);
+  const [showNewItemModal, setShowNewItemModal] = useState(false);
+  const [lastRawData, setLastRawData] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [newItemData, setNewItemData] = useState({
+    name: '',
+    material: '',
+    color: '',
     counted: 0
   });
+  const [loggedIn, setLoggedIn] = useState(() => localStorage.getItem('ovix_logged_in') === 'true');
 
   // Helper para agregar IDs internos
   const addInternalIds = (data, prefix = 'item') => {
@@ -242,8 +284,10 @@ export default function InventoryApp() {
   };
 
   useEffect(() => {
-    fetchData(); 
-  }, []); 
+    if (loggedIn) {
+      fetchData();
+    }
+  }, [loggedIn]);
 
   // Función inteligente para normalizar claves (Keys) del JSON
   const normalizeItem = (rawItem) => {
@@ -496,8 +540,13 @@ export default function InventoryApp() {
   const pendingChanges = items.filter(i => i.stock !== i.counted).length;
 
 
+  if (!loggedIn) {
+    return <LoginScreen onLogin={() => setLoggedIn(true)} />;
+  }
+
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-800 font-sans overflow-hidden">
+      {/* ...existing code... */}
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-md z-10">
         <div className="flex justify-between items-center mb-3">
@@ -529,6 +578,7 @@ export default function InventoryApp() {
 
       {/* Main List */}
       <main className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
+        {/* ...existing code... */}
         {loading && (
              <div className="bg-blue-50 text-blue-700 p-4 rounded-xl shadow-md flex items-center justify-center gap-3">
                 <RefreshCw size={20} className="shrink-0 animate-spin"/>
@@ -598,7 +648,7 @@ export default function InventoryApp() {
 
       {/* Floating Save Button */}
       <div className="absolute bottom-6 left-0 right-0 px-4 flex justify-center pointer-events-none">
-        <button onClick={saveInventory} disabled={saving || pendingChanges === 0} className={`flex items-center justify-center gap-2 px-8 py-4 rounded-full font-bold text-white shadow-lg transition-all transform pointer-events-auto ${pendingChanges > 0 ? 'bg-green-600 hover:bg-green-500 translate-y-0' : 'bg-slate-400 translate-y-20 opacity-0'}`}>
+        <button onClick={saveInventory} disabled={saving || pendingChanges === 0} className={`flex items-center justify-center gap-2 px-8 py-4 rounded-full font-bold text-white shadow-lg transition-all transform pointer-events-auto ${pendingChanges > 0 ? 'bg-green-600 hover:bg-green-500 translate-y-0' : 'bg-slate-400 translate-y-20 opacity-0'}`}> 
           {saving ? <><RefreshCw className="animate-spin" size={20} /> Guardando...</> : <><Save size={20} /> Confirmar {pendingChanges} cambios</>}
         </button>
       </div>
